@@ -296,9 +296,15 @@
         }
 
         function findingDetail(finding) {
-            if (finding.file) return "File: <code>" + escapeHtml(finding.file) + "</code>";
-            if (finding.pattern) return "Pattern: <code>" + escapeHtml(finding.pattern) + "</code>";
-            return "&mdash;";
+            const parts = [];
+            if (finding.file) parts.push("File: <code>" + escapeHtml(finding.file) + "</code>");
+            if (finding.pattern) parts.push("Pattern: <code>" + escapeHtml(finding.pattern) + "</code>");
+            if (finding.commit) {
+                let commit = "Commit: <code>" + escapeHtml(finding.commit) + "</code>";
+                if (finding.commit_message) commit += " " + escapeHtml(finding.commit_message);
+                parts.push(commit);
+            }
+            return parts.length ? parts.join("<br>") : "&mdash;";
         }
 
         function renderRepo(repo) {

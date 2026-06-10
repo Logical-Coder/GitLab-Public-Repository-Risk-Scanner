@@ -207,3 +207,65 @@ class GitLabService:
         response.raise_for_status()
 
         return response.json()
+
+    def get_commits(self, project_id):
+
+        commits = []
+
+        page = 1
+
+        while True:
+
+            url = (
+                f"{self.BASE_URL}/projects/"
+                f"{project_id}/repository/commits"
+            )
+
+            response = requests.get(
+                url,
+                params={
+                    "per_page": 100,
+                    "page": page
+                },
+                timeout=30
+            )
+
+            if response.status_code != 200:
+                break
+
+            batch = response.json()
+
+            if not batch:
+                break
+
+            commits.extend(batch)
+
+            next_page = response.headers.get(
+                "X-Next-Page"
+            )
+
+            if not next_page:
+                break
+
+            page = int(next_page)
+
+        return commits
+
+    def get_commit_diff(self, project_id, sha):
+
+        url = (
+            f"{self.BASE_URL}/projects/"
+            f"{project_id}/repository/commits/"
+            f"{sha}/diff"
+        )
+
+        response = requests.get(
+            url,
+            params={"per_page": 100},
+            timeout=30
+        )
+
+        if response.status_code != 200:
+            return []
+
+        return response.json()

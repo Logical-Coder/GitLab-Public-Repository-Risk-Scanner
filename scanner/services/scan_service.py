@@ -99,6 +99,15 @@ class ScanService:
                         f"{error}"
                     )
 
+            # Commit history scan
+            findings.extend(
+                self.scan_commits(
+                    gitlab_service,
+                    secret_scanner,
+                    project
+                )
+            )
+
             results.append(
                 {
                     "repository_name":
@@ -130,3 +139,71 @@ class ScanService:
             "repositories":
             results
         }
+
+    def scan_commits(
+        self,
+        gitlab_service,
+        secret_scanner,
+        project
+    ):
+
+        findings = []
+
+        try:
+            commits = gitlab_service.get_commits(
+                project["id"]
+            )
+        except Exception as error:
+
+            print(
+                f"Failed to get commits "
+                f"for {project['name']}: {error}"
+            )
+
+            return findings
+
+        print(
+            f"Scanning {len(commits)} commits "
+            f"for {project['name']}"
+        )
+
+        for commit in commits:
+
+            try:
+                diffs = gitlab_service.get_commit_diff(
+                    project["id"],
+                    commit["id"]
+                )
+            except Exception as error:
+
+                print(
+                    f"Failed to get diff for commit "
+                    f"{commit['id']}: {error}"
+                )
+
+                continue
+
+            for diff in diffs:
+
+                diff_text = diff.get("diff", "")
+
+                for finding in secret_scanner.scan(
+                    diff_text
+                ):
+
+                    finding["commit"] = (
+                        commit["id"][:8]
+                    )
+
+                    finding["commit_message"] = (
+                        commit.get("title", "")
+                    )
+
+                    finding["file"] = diff.get(
+                        "new_path",
+                        diff.get("old_path", "")
+                    )
+
+                    findings.append(finding)
+
+        return findings
