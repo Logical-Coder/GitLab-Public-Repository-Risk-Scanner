@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitLab Repository Risk Scanner</title>
+    <style>
+        :root {
+            --bg: #0f1117;
+            --panel: #1a1d27;
+            --panel-2: #232733;
+            --border: #2d3240;
+            --text: #e6e8ee;
+            --muted: #8b91a3;
+            --accent: #fc6d26;
+            --accent-2: #e24329;
+            --high: #ef4444;
+            --medium: #f59e0b;
+            --low: #38bdf8;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--accent-2), var(--accent));
+            padding: 28px 24px;
+            text-align: center;
+        }
+
+        header h1 {
+            margin: 0;
+            font-size: 1.6rem;
+            letter-spacing: -0.02em;
+        }
+
+        header p {
+            margin: 6px 0 0;
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 0.9rem;
+        }
+
+        main {
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 28px 20px 60px;
+        }
+
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            align-items: flex-end;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex: 1 1 200px;
+        }
+
+        label {
+            font-size: 0.8rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        select, input {
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 11px 12px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        select:focus, input:focus {
+            border-color: var(--accent);
+        }
+
+        button {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            padding: 12px 22px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+            flex: 0 0 auto;
+        }
+
+        button:hover { background: var(--accent-2); }
+        button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        #status {
+            margin-top: 18px;
+            font-size: 0.9rem;
+            color: var(--muted);
+            min-height: 20px;
+        }
+
+        .error { color: var(--high); }
+
+        .summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin: 28px 0 8px;
+        }
+
+        .stat {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px 20px;
+            flex: 1 1 140px;
+        }
+
+        .stat .num {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        .stat .lbl {
+            font-size: 0.78rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .repo {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-top: 18px;
+            overflow: hidden;
+        }
+
+        .repo-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            background: var(--panel-2);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .repo-head a {
+            color: var(--text);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .repo-head a:hover { color: var(--accent); }
+
+        .pill {
+            font-size: 0.78rem;
+            padding: 3px 10px;
+            border-radius: 999px;
+            background: var(--border);
+            color: var(--muted);
+        }
+
+        .pill.clean {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 11px 20px;
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            color: var(--muted);
+            font-size: 0.74rem;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        tr:last-child td { border-bottom: none; }
+
+        .badge {
+            display: inline-block;
+            font-size: 0.72rem;
+            font-weight: 700;
+            padding: 2px 9px;
+            border-radius: 6px;
+            letter-spacing: 0.03em;
+        }
+
+        .badge.HIGH { background: rgba(239, 68, 68, 0.15); color: var(--high); }
+        .badge.MEDIUM { background: rgba(245, 158, 11, 0.15); color: var(--medium); }
+        .badge.LOW { background: rgba(56, 189, 248, 0.15); color: var(--low); }
+
+        code {
+            background: var(--panel-2);
+            padding: 2px 6px;
+            border-radius: 5px;
+            font-size: 0.85rem;
+        }
+
+        .empty {
+            text-align: center;
+            color: var(--muted);
+            padding: 40px 20px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>GitLab Repository Risk Scanner</h1>
+        <p>Scan a public GitLab user or group for exposed secrets and sensitive files</p>
+    </header>
+
+    <main>
+        <div class="card">
+            <form id="scan-form">
+                <div class="field">
+                    <label for="target_type">Target type</label>
+                    <select id="target_type" name="target_type">
+                        <option value="user">User</option>
+                        <option value="group">Group</option>
+                        <option value="repository">Repository</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="target_name">Target name</label>
+                    <input id="target_name" name="target_name" type="text"
+                           placeholder="e.g. gitlab-org" required>
+                </div>
+                <button type="submit" id="submit-btn">Run scan</button>
+            </form>
+            <div id="status"></div>
+        </div>
+
+        <div id="results"></div>
+    </main>
+
+    <script>
+        const form = document.getElementById("scan-form");
+        const statusEl = document.getElementById("status");
+        const resultsEl = document.getElementById("results");
+        const submitBtn = document.getElementById("submit-btn");
+
+        const SCAN_URL = "/api/v1/scan/";
+
+        const targetTypeEl = document.getElementById("target_type");
+        const targetNameEl = document.getElementById("target_name");
+
+        const PLACEHOLDERS = {
+            user: "e.g. gitlab-org",
+            group: "e.g. gitlab-org",
+            repository: "e.g. gitlab-org/gitlab"
+        };
+
+        function updatePlaceholder() {
+            targetNameEl.placeholder = PLACEHOLDERS[targetTypeEl.value] || "";
+        }
+
+        targetTypeEl.addEventListener("change", updatePlaceholder);
+        updatePlaceholder();
+
+        function escapeHtml(value) {
+            return String(value ?? "")
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function findingDetail(finding) {
+            if (finding.file) return "File: <code>" + escapeHtml(finding.file) + "</code>";
+            if (finding.pattern) return "Pattern: <code>" + escapeHtml(finding.pattern) + "</code>";
+            return "&mdash;";
+        }
+
+        function renderRepo(repo) {
+            const findings = repo.findings || [];
+            const count = findings.length;
+            const pill = count === 0
+                ? '<span class="pill clean">No findings</span>'
+                : '<span class="pill">' + count + ' finding' + (count === 1 ? "" : "s") + '</span>';
+
+            let body;
+            if (count === 0) {
+                body = '<div class="empty">No risks detected in this repository.</div>';
+            } else {
+                const rows = findings.map(function (f) {
+                    const sev = escapeHtml(f.severity || "LOW");
+                    return '<tr>' +
+                        '<td>' + escapeHtml(f.issue || "Unknown issue") + '</td>' +
+                        '<td><span class="badge ' + sev + '">' + sev + '</span></td>' +
+                        '<td>' + findingDetail(f) + '</td>' +
+                        '</tr>';
+                }).join("");
+                body = '<table><thead><tr><th>Issue</th><th>Severity</th><th>Detail</th></tr></thead>' +
+                    '<tbody>' + rows + '</tbody></table>';
+            }
+
+            const name = escapeHtml(repo.repository_name || "Unnamed repository");
+            const url = repo.repository_url;
+            const title = url
+                ? '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + name + '</a>'
+                : '<span>' + name + '</span>';
+
+            return '<div class="repo"><div class="repo-head">' + title + pill + '</div>' + body + '</div>';
+        }
+
+        function renderResults(data) {
+            const repos = data.repositories || [];
+            const summary =
+                '<div class="summary">' +
+                '<div class="stat"><div class="num">' + escapeHtml(data.scan_target ?? "&mdash;") + '</div><div class="lbl">Target</div></div>' +
+                '<div class="stat"><div class="num">' + (data.repositories_scanned ?? 0) + '</div><div class="lbl">Repositories scanned</div></div>' +
+                '<div class="stat"><div class="num">' + (data.total_findings ?? 0) + '</div><div class="lbl">Total findings</div></div>' +
+                '</div>';
+
+            const body = repos.length
+                ? repos.map(renderRepo).join("")
+                : '<div class="card empty">No repositories found for this target.</div>';
+
+            resultsEl.innerHTML = summary + body;
+        }
+
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+
+            const payload = {
+                target_type: document.getElementById("target_type").value,
+                target_name: document.getElementById("target_name").value.trim()
+            };
+
+            if (!payload.target_name) {
+                statusEl.innerHTML = '<span class="error">Please enter a target name.</span>';
+                return;
+            }
+
+            submitBtn.disabled = true;
+            statusEl.className = "";
+            statusEl.textContent = "Scanning " + payload.target_name + "… this may take a moment.";
+            resultsEl.innerHTML = "";
+
+            try {
+                const response = await fetch(SCAN_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    const detail = data.detail || JSON.stringify(data);
+                    throw new Error(detail);
+                }
+
+                statusEl.textContent = "Scan complete.";
+                renderResults(data);
+            } catch (err) {
+                statusEl.innerHTML = '<span class="error">Scan failed: ' + escapeHtml(err.message) + '</span>';
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

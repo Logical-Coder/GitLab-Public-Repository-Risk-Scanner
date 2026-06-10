@@ -1,1 +1,0 @@
-# GitLab-Public-Repository-Risk-Scanner
